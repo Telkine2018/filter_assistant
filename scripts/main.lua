@@ -79,7 +79,7 @@ local function get_inventory(entity)
     if container_filter[entity.type] then
         if (entity.type == "linked-container") then
             inv, gui_type = entity.get_inventory(defines.inventory.chest), defines.relative_gui_type
-            .linked_container_gui
+                .linked_container_gui
         else
             inv, gui_type = entity.get_inventory(defines.inventory.chest), defines.relative_gui_type.container_gui
         end
@@ -89,7 +89,7 @@ local function get_inventory(entity)
         inv, gui_type = entity.get_inventory(defines.inventory.cargo_wagon), defines.relative_gui_type.container_gui
     elseif entity.type == "spider-vehicle" then
         inv, gui_type = entity.get_inventory(defines.inventory.spider_trunk),
-        defines.relative_gui_type.spider_vehicle_gui
+            defines.relative_gui_type.spider_vehicle_gui
     elseif entity.type == "character" then
         inv, gui_type = entity.get_inventory(defines.inventory.character_main), defines.relative_gui_type.controller_gui
     else
@@ -371,6 +371,8 @@ local function do_apply(player)
         inv.set_bar()
     end
 
+    local item_set = {}
+
     local records = {}
     for _, child in pairs(filter_flow.children) do
         local item = child.item.elem_value
@@ -378,6 +380,7 @@ local function do_apply(player)
             local count = tonumber(child.count.text)
             if count and count > 0 then
                 table.insert(records, { item = item, count = count })
+                item_set[item] = true
             end
         end
     end
@@ -427,11 +430,23 @@ local function do_apply(player)
         end
     end
 
+    if free_slot_count > 0 then
+        item_set = nil
+    end
+
+    if remote.interfaces["logistic_belt2_filtering"] and remote.interfaces["logistic_belt2_filtering"].set_restrictions then
+        remote.call("logistic_belt2_filtering", "set_restrictions", entity.unit_number, item_set, player.index)
+    end
+
     if free_slot_count then
         last = last + free_slot_count
     end
     if last <= #inv and inv.supports_bar() then
         inv.set_bar(last)
+    end
+
+    if free_slot_count == 0 then
+
     end
 
     temp.destroy()
