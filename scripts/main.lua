@@ -33,29 +33,40 @@ local function close_ui(player)
     end
 end
 
+local bsize = 30
+local mini_style = prefix .. "_mini_button"
+local mini_size = 16
+
 ---@param filter_flow LuaGuiElement
 ---@param item Item?
 ---@param count ItemCount
 local function create_cell(filter_flow, item, count)
     local filter_cell = filter_flow.add { type = "flow", direction = "horizontal" }
-    filter_cell.add { type = "choose-elem-button", elem_type = "item", item = item, name = "item" }
+
+    local b = filter_cell.add { type = "choose-elem-button", elem_type = "item", item = item, name = "item" }
+    b.style.size = bsize
+
     local f = filter_cell.add { type = "textfield", name = "count", numeric = true, text = tostring(count),
         tooltip = { "tooltip.count" } }
-    f.style.width = 50
-    f.style.top_margin = 7
+    f.style.width = 40
 
-    local b = filter_cell.add { type = "sprite-button", sprite = prefix .. "-plus", name = prefix .. "-plus",
-        style = prefix .. "_slot_button_default" }
-    b.style.top_margin = 7
-    b = filter_cell.add { type = "sprite-button", sprite = prefix .. "-minus", name = prefix .. "-minus",
-        style = prefix .. "_slot_button_default" }
-    b.style.top_margin = 7
-    b = filter_cell.add { type = "sprite-button", sprite = prefix .. "-up", name = prefix .. "-up",
-        style = prefix .. "_slot_button_default", tooltip = { "tooltip.up" } }
-    b.style.top_margin = 7
-    b = filter_cell.add { type = "sprite-button", sprite = prefix .. "-down", name = prefix .. "-down",
-        style = prefix .. "_slot_button_default", tooltip = { "tooltip.down" } }
-    b.style.top_margin = 7
+    local count_flow = filter_cell.add { type = "flow", direction = "vertical" }
+    count_flow.style = prefix .. "_flow"
+    b = count_flow.add { type = "sprite-button", sprite = prefix .. "-plus", name = prefix .. "-plus",
+        style = mini_style }
+    b.style.size = mini_size
+    b = count_flow.add { type = "sprite-button", sprite = prefix .. "-minus", name = prefix .. "-minus",
+        style = mini_style }
+    b.style.size = mini_size
+
+    local position_flow = filter_cell.add { type = "flow", direction = "vertical" }
+    position_flow.style = prefix .. "_flow"
+    b = position_flow.add { type = "sprite-button", sprite = prefix .. "-up", name = prefix .. "-up",
+        style = mini_style, tooltip = { "tooltip.up" } }
+    b.style.size = mini_size
+    b = position_flow.add { type = "sprite-button", sprite = prefix .. "-down", name = prefix .. "-down",
+        style = mini_style, tooltip = { "tooltip.down" } }
+    b.style.size = mini_size
 end
 
 ---@param filter_flow LuaGuiElement
@@ -102,7 +113,7 @@ end
 ---@param inv LuaInventory
 ---@return table ItemTable
 ---@return table Item[]
-local function get_filters(inv)
+local function get_inventory_filters(inv)
     ---@type ItemTable
     local filter_counts = {}
 
@@ -130,7 +141,7 @@ end
 local function import_filters(inv)
     ---@type table<Item, integer>
     local filter_counts = {}
-    ---@return table table<Item, integer>
+    ---@return table string[]
     local filter_order = {}
 
     for index = 1, #inv do
@@ -146,7 +157,6 @@ local function import_filters(inv)
             end
         end
     end
-
     return filter_counts, filter_order
 end
 
@@ -194,10 +204,12 @@ local function on_gui_opened(e)
 
         frame.style.minimal_width = 200
 
-        local filter_counts, filter_order = get_filters(inv)
-        local filter_flow = frame.add { type = "scroll-pane", name = "filter_flow", direction = "vertical" }
-        filter_flow.style.maximal_height = 800
-        filter_flow.style.minimal_width = 190
+        local filter_counts, filter_order = get_inventory_filters(inv)
+        local filter_scroll = frame.add { type = "scroll-pane", direction = "vertical", name = "filter_scroll", }
+        filter_scroll.style.maximal_height = 800
+        filter_scroll.style.minimal_width = 190
+
+        local filter_flow = filter_scroll.add { type = "table", column_count = 2, name = "filter_flow", }
 
         create_cells(filter_flow, filter_order, filter_counts)
 
@@ -211,17 +223,28 @@ local function on_gui_opened(e)
         free_slot.style.left_margin = 10
 
         local b_flow1 = frame.add { type = "flow", direction = "horizontal" }
-        b_flow1.add { type = "button", caption = { "button.add" }, name = prefix .. "_add", tooltip = { "tooltip.add" } }
-        b_flow1.add { type = "button", caption = { "button.apply" }, name = prefix .. "_apply",
+        local b = b_flow1.add { type = "sprite-button", sprite = prefix .. "-add", name = prefix .. "_add", tooltip = { "tooltip.add" } }
+        b.style.size = 24
+        b = b_flow1.add { type = "sprite-button", sprite = prefix .. "-apply", name = prefix .. "_apply",
             tooltip = { "tooltip.apply" } }
-
-        local b_flow2 = frame.add { type = "flow", direction = "horizontal" }
-        b_flow2.add { type = "button", caption = { "button.import" }, name = prefix .. "_import",
+        b.style.size = 24
+        b = b_flow1.add { type = "sprite-button", sprite = prefix .. "-import", name = prefix .. "_import",
             tooltip = { "tooltip.import" } }
-        b_flow2.add { type = "button", caption = { "button.clear" }, name = prefix .. "_clear",
+        b.style.size = 24
+        b = b_flow1.add { type = "sprite-button", sprite = prefix .. "-clear", name = prefix .. "_clear",
             tooltip = { "tooltip.clear" } }
+        b.style.size = 24
+
+        b = b_flow1.add { type = "sprite-button", sprite = prefix .. "-sort", name = prefix .. "_sort",
+            tooltip = { "tooltip.sort" } }
+        b.style.size = 24
+
+        b = b_flow1.add { type = "sprite-button", sprite = prefix .. "-bp", name = prefix .. "_bp",
+            tooltip = { "tooltip.bp" } }
+        b.style.size = 24
 
         local vars = tools.get_vars(player)
+
         ---@type  ScanProcess
         vars.current = {
             entity = entity,
@@ -243,7 +266,7 @@ tools.on_gui_click(prefix .. "_add", function(e)
     local frame = player.gui.relative[frame_name]
     if not frame then return end
 
-    local filter_flow = frame.filter_flow
+    local filter_flow = frame.filter_scroll.filter_flow
     create_cell(filter_flow, nil, 1)
 end)
 
@@ -257,7 +280,7 @@ tools.on_gui_click(prefix .. "_import", function(e)
     if not current then return end
 
     local entity = current.entity
-    local filter_flow = frame.filter_flow
+    local filter_flow = frame.filter_scroll.filter_flow
     local inv = get_inventory(entity)
     ---@cast inv -nil
     local filter_counts, filter_order = import_filters(inv)
@@ -271,14 +294,14 @@ tools.on_gui_click(prefix .. "_clear", function(e)
     local frame = player.gui.relative[frame_name]
     if not frame then return end
 
-    local filter_flow = frame.filter_flow
+    local filter_flow = frame.filter_scroll.filter_flow
     filter_flow.clear()
 end)
 
 tools.on_gui_click(prefix .. "-up", function(e)
     local element = e.element
     if not element or not element.valid then return end
-    local cell = element.parent
+    local cell = element.parent.parent
     local filter_flow = cell.parent
     local index = cell.get_index_in_parent()
     local count = 1
@@ -297,7 +320,7 @@ end)
 tools.on_gui_click(prefix .. "-down", function(e)
     local element = e.element
     if not element or not element.valid then return end
-    local cell = element.parent
+    local cell = element.parent.parent
     local filter_flow = cell.parent
     local index = cell.get_index_in_parent()
     local count = 1
@@ -316,7 +339,7 @@ end)
 tools.on_gui_click(prefix .. "-plus", function(e)
     local element = e.element
     if not element or not element.valid then return end
-    local cell = element.parent
+    local cell = element.parent.parent
     ---@cast cell  ElementWithFields
     local fcount = cell.count
     if fcount.text then
@@ -327,7 +350,7 @@ end)
 tools.on_gui_click(prefix .. "-minus", function(e)
     local element = e.element
     if not element or not element.valid then return end
-    local cell = element.parent
+    local cell = element.parent.parent
     ---@cast cell ElementWithFields
     local fcount = cell.count
     if fcount.text then
@@ -340,9 +363,28 @@ tools.on_gui_click(prefix .. "-minus", function(e)
     end
 end)
 
+---@param filter_flow  LuaGuiElement
+---@return {item:Item, count:integer}[]
+---@return {[Item]:boolean}?
+local function get_edited_filters(filter_flow)
+    local records = {}
+    local item_set = {}
+    for _, child in pairs(filter_flow.children) do
+        local item = child["item"].elem_value
+        if item then
+            local count = tonumber(child["count"].text)
+            if count and count > 0 then
+                table.insert(records, { item = item, count = count })
+                item_set[item] = true
+            end
+        end
+    end
+    return records, item_set
+end
 
 ---@param player LuaPlayer
-local function do_apply(player)
+---@param connect_to_lb2 boolean?
+local function do_apply(player, connect_to_lb2)
     local vars = tools.get_vars(player)
     local current = vars.current
     if not current then return end
@@ -371,19 +413,7 @@ local function do_apply(player)
         inv.set_bar()
     end
 
-    local item_set = {}
-
-    local records = {}
-    for _, child in pairs(filter_flow.children) do
-        local item = child.item.elem_value
-        if item then
-            local count = tonumber(child.count.text)
-            if count and count > 0 then
-                table.insert(records, { item = item, count = count })
-                item_set[item] = true
-            end
-        end
-    end
+    local records, item_set = get_edited_filters(filter_flow)
 
     local index = 1
     for _, record in pairs(records) do
@@ -430,12 +460,14 @@ local function do_apply(player)
         end
     end
 
-    if free_slot_count > 0 then
+    if not free_slot_count or free_slot_count > 0 then
         item_set = nil
     end
 
-    if remote.interfaces["logistic_belt2_filtering"] and remote.interfaces["logistic_belt2_filtering"].set_restrictions then
-        remote.call("logistic_belt2_filtering", "set_restrictions", entity.unit_number, item_set, player.index)
+    if connect_to_lb2 then
+        if remote.interfaces["logistic_belt2_filtering"] and remote.interfaces["logistic_belt2_filtering"].set_restrictions then
+            remote.call("logistic_belt2_filtering", "set_restrictions", entity, item_set, player.index)
+        end
     end
 
     if free_slot_count then
@@ -445,19 +477,125 @@ local function do_apply(player)
         inv.set_bar(last)
     end
 
-    if free_slot_count == 0 then
-
-    end
-
     temp.destroy()
 end
 
+tools.on_gui_click(prefix .. "_sort", function(e)
+    local player = game.players[e.player_index]
+    local frame = player.gui.relative[frame_name]
+    if not frame then return end
+
+    local vars = tools.get_vars(player)
+    local current = vars.current
+    if not current then return end
+
+    local entity = current.entity
+    local filter_flow = frame.filter_scroll.filter_flow
+
+    local records, item_set = get_edited_filters(filter_flow)
+
+    table.sort(records,
+        function(i1, i2)
+            local p1 = game.item_prototypes[i1.item]
+            local p2 = game.item_prototypes[i2.item]
+            if p1.group ~= p2.group then
+                return p1.group.order < p2.group.order
+            elseif p1.subgroup ~= p2.subgroup then
+                return p1.subgroup.order < p2.subgroup.order
+            else
+                return p1.order < p2.order
+            end
+        end)
+
+    filter_flow.clear()
+    for _, r in ipairs(records) do
+        create_cell(filter_flow, r.item, r.count)
+    end
+end)
+
+tools.on_gui_click(prefix .. "_bp", function(e)
+    local player = game.players[e.player_index]
+    local frame = player.gui.relative[frame_name]
+    if not frame then return end
+
+    local vars = tools.get_vars(player)
+    local current = vars.current
+    if not current then return end
+
+    local filter_flow = frame.filter_scroll.filter_flow
+    local stack = player.cursor_stack
+    if stack.is_blueprint then
+        local entities = stack.get_blueprint_entities()
+        local records = {}
+        for _, entity in pairs(entities) do
+            if entity.name == "constant-combinator" then
+                local filters = entity.control_behavior.filters
+                for _, filter in pairs(filters) do
+                    if filter.signal and filter.signal.type == "item" then
+                        table.insert(records, {
+                            item = filter.signal.name,
+                            count = filter.count
+                        })
+                    end
+                end
+            end
+        end
+        filter_flow.clear()
+        for _, r in ipairs(records) do
+            create_cell(filter_flow, r.item, r.count)
+        end
+    else
+        stack.clear()
+        stack.set_stack({ name = "blueprint", count = 1 })
+
+        local records = get_edited_filters(filter_flow)
+        local x = 0.5
+        local y = 0.5
+        local bpentities = {}
+        local current = nil
+        local filters
+        local index
+        local entity_number = 1
+        local cc = game.entity_prototypes["constant-combinator"]
+        for _, r in pairs(records) do
+            if current == nil then
+                filters = {}
+                local bpentity = {
+
+                    name = "constant-combinator",
+                    position = { x = x, y = y },
+                    control_behavior = {
+                        filters = filters
+                    },
+                    entity_number = entity_number
+                }
+                x = x + 1
+                current = bpentity
+                table.insert(bpentities, bpentity)
+                index = 1
+                entity_number = entity_number + 1
+            end
+            table.insert(filters, {
+                signal = { type = "item", name = r.item },
+                count = r.count,
+                index = index
+            })
+            index = index + 1
+            if index > cc.item_slot_count then
+                current = nil
+            end
+        end
+        stack.set_blueprint_entities(bpentities)
+    end
+end)
+
+---@param e EventData.on_gui_click
 local function on_apply(e)
     local player = game.players[e.player_index]
     local frame = player.gui.relative[frame_name]
     if not frame then return end
 
-    do_apply(player)
+    do_apply(player, e.control)
 end
 
 local function on_gui_elem_changed(e)
@@ -504,7 +642,7 @@ local function on_nth_tick(e)
         else
             local inv = get_inventory(container.entity)
             if inv then
-                local filter_counts, filter_order = get_filters(inv)
+                local filter_counts, filter_order = get_inventory_filters(inv)
 
                 local change = false
                 if #filter_order ~= #container.filter_order then
@@ -531,20 +669,31 @@ local function on_nth_tick(e)
     end
 end
 
-local function add_filter(inv, item)
+---@param inv LuaInventory
+---@param item string
+---@param count integer?
+local function add_filter(inv, item, count)
+    if not count then count = 1 end
     for i = 1, #inv do
         local filter = inv.get_filter(i)
-        if filter == item then return end
-
-        if filter == nil then
+        local found
+        if filter == item then
+            found = true
+        elseif filter == nil then
             local stack = inv[i]
             if stack.valid_for_read then
                 if stack.name == item then
                     inv.set_filter(i, item)
-                    return
+                    found = true
                 end
             else
                 inv.set_filter(i, item)
+                found = true
+            end
+        end
+        if found then
+            count = count - 1
+            if count <= 0 then
                 return
             end
         end
@@ -554,7 +703,6 @@ end
 local function on_shift_button1(e)
     local player = game.players[e.player_index]
 
-    debug("click")
     local machine = player.entity_copy_source
     if machine and machine.type == "assembling-machine" then
         if not player.mod_settings[prefix .. "-copy_paste_container"].value then
@@ -575,7 +723,7 @@ local function on_shift_button1(e)
 
         for _, ingredient in pairs(recipe.ingredients) do
             if ingredient.type == "item" then
-                add_filter(inv, ingredient.name)
+                add_filter(inv, ingredient.name, 2)
             end
         end
         for _, product in pairs(recipe.products) do
