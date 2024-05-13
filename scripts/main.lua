@@ -209,7 +209,8 @@ local function on_gui_opened(e)
         filter_scroll.style.maximal_height = 800
         filter_scroll.style.minimal_width = 190
 
-        local filter_flow = filter_scroll.add { type = "table", column_count = 2, name = "filter_flow", }
+        local col_count = player.mod_settings[prefix .. "-col_count"].value
+        local filter_flow = filter_scroll.add { type = "table", column_count = col_count, name = "filter_flow", }
 
         create_cells(filter_flow, filter_order, filter_counts)
 

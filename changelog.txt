@@ -3,6 +3,10 @@ Version: 1.0.1
 Date: 07. 05. 2024.
   Info:
     - Add support for logistic belt 2
+    - More compact GUI
+    - Add sort options
+    - Can change count of display columns (user settings)
+    - Import / export as blueprint
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 10. 01. 2023.

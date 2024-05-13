@@ -23,7 +23,16 @@ data:extend(
 			name = prefix .. "-use_on_player",
 			setting_type = "runtime-per-user",
 			default_value = true
+		},
+		{
+			type = "int-setting",
+			name = prefix .. "-col_count",
+			setting_type = "runtime-per-user",
+			default_value = 2,
+			minimum_value = 1,
+			maximum_value = 4,
 		}
+
 
 })
 
