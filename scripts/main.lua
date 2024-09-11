@@ -297,6 +297,16 @@ tools.on_gui_click(prefix .. "_clear", function(e)
 
     local filter_flow = frame.filter_scroll.filter_flow
     filter_flow.clear()
+
+    local vars = tools.get_vars(player)
+    local current = vars.current
+    if not current then return end
+
+    if not current.entity.valid then return end
+
+    local inv = get_inventory(current.entity)
+    local last = #inv
+    current.free_slot.text = tostring(last)
 end)
 
 tools.on_gui_click(prefix .. "-up", function(e)
