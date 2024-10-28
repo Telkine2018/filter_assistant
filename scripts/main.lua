@@ -16,6 +16,27 @@ local container_filter = {
     ["linked-container"] = true
 }
 
+---@param item ItemFilter?
+---@return string?
+local function item_to_string(item)
+    if not item then return nil end
+    return item.name .. "/" .. (item.comparator or "=") .. "/" .. (item.quality or "normal")
+end
+
+local gmatch = string.gmatch
+
+---@param qname string?
+---@return ItemFilter?
+local function string_to_item(qname)
+    if not qname then return nil end
+    if type(qname) ~= "string" then return qname end
+    local split = gmatch(qname, "([^/]+)")
+    local name = split()
+    local comparator = split() or "="
+    local quality = split() or "normal"
+    return { name = name, comparator = comparator, quality = quality }
+end
+
 ---Close current ui
 ---@param player LuaPlayer
 local function close_ui(player)
@@ -26,7 +47,7 @@ local function close_ui(player)
         vars.current = nil
         frame.destroy()
 
-        local scanned_list = global.scanned_list
+        local scanned_list = storage.scanned_list
         if scanned_list then
             scanned_list[player.index] = nil
         end
@@ -38,12 +59,14 @@ local mini_style = prefix .. "_mini_button"
 local mini_size = 16
 
 ---@param filter_flow LuaGuiElement
----@param item Item?
+---@param qname string?
 ---@param count ItemCount
-local function create_cell(filter_flow, item, count)
+local function create_cell(filter_flow, qname, count)
     local filter_cell = filter_flow.add { type = "flow", direction = "horizontal" }
 
-    local b = filter_cell.add { type = "choose-elem-button", elem_type = "item", item = item, name = "item" }
+    local item = string_to_item(qname)
+    local b = filter_cell.add { type = "choose-elem-button", elem_type = "item-with-quality", name = "item" }
+    b.elem_value = item
     b.style.size = bsize
 
     local f = filter_cell.add { type = "textfield", name = "count", numeric = true, text = tostring(count),
@@ -70,8 +93,8 @@ local function create_cell(filter_flow, item, count)
 end
 
 ---@param filter_flow LuaGuiElement
----@param filter_order Item[]
----@param filters table<Item, ItemCount>
+---@param filter_order string[]
+---@param filters {[string]:integer}
 local function create_cells(filter_flow, filter_order, filters)
     for _, item in ipairs(filter_order) do
         create_cell(filter_flow, item, filters[item])
@@ -111,23 +134,26 @@ local function get_inventory(entity)
 end
 
 ---@param inv LuaInventory
----@return table ItemTable
----@return table Item[]
+---@return {[string]:integer}
+---@return string[]
 local function get_inventory_filters(inv)
-    ---@type ItemTable
+    ---@type {[string]:integer}
     local filter_counts = {}
 
-    ---@type Item[]
+    ---@type string[]
     local filter_order = {}
 
     for index = 1, #inv do
         local item = inv.get_filter(index)
         if item then
-            if not filter_counts[item] then
-                filter_counts[item] = 1
-                table.insert(filter_order, item)
-            else
-                filter_counts[item] = filter_counts[item] + 1
+            local qname = item_to_string(item)
+            if qname then
+                if not filter_counts[qname] then
+                    filter_counts[qname] = 1
+                    table.insert(filter_order, qname)
+                else
+                    filter_counts[qname] = filter_counts[qname] + 1
+                end
             end
         end
     end
@@ -144,18 +170,20 @@ local function import_filters(inv)
     ---@return table string[]
     local filter_order = {}
 
-    for index = 1, #inv do
-        if inv[index].valid and inv[index].valid_for_read then
-            local item = inv[index].name
-            if item then
-                if not filter_counts[item] then
-                    filter_counts[item] = 1
-                    table.insert(filter_order, item)
-                else
-                    filter_counts[item] = filter_counts[item] + 1
-                end
-            end
+    local content = inv.get_contents()
+    for _, itemc in pairs(content) do
+        local qname = itemc.name .. "/=/" .. itemc.quality
+        if not filter_counts[qname] then
+            filter_counts[qname] = itemc.count
+            table.insert(filter_order, qname)
+        else
+            filter_counts[qname] = filter_counts[qname] + itemc.count
         end
+    end
+    for qname, count in pairs(filter_counts) do
+        local item = string_to_item(qname)
+        ---@cast item -nil
+        filter_counts[qname] = math.ceil(count / prototypes.item[item.name].stack_size)
     end
     return filter_counts, filter_order
 end
@@ -255,10 +283,10 @@ local function on_gui_opened(e)
             free_slot = free_slot
         }
 
-        if not global.scanned_list then
-            global.scanned_list = {}
+        if not storage.scanned_list then
+            storage.scanned_list = {}
         end
-        global.scanned_list[player.index] = vars.current
+        storage.scanned_list[player.index] = vars.current
     end
 end
 
@@ -313,7 +341,9 @@ tools.on_gui_click(prefix .. "-up", function(e)
     local element = e.element
     if not element or not element.valid then return end
     local cell = element.parent.parent
+    ---@cast cell -nil
     local filter_flow = cell.parent
+    ---@cast filter_flow -nil
     local index = cell.get_index_in_parent()
     local count = 1
     if e.shift then count = 5 end
@@ -332,7 +362,9 @@ tools.on_gui_click(prefix .. "-down", function(e)
     local element = e.element
     if not element or not element.valid then return end
     local cell = element.parent.parent
+    ---@cast cell -nil
     local filter_flow = cell.parent
+    ---@cast filter_flow -nil
     local index = cell.get_index_in_parent()
     local count = 1
     if e.shift then count = 5 end
@@ -375,8 +407,8 @@ tools.on_gui_click(prefix .. "-minus", function(e)
 end)
 
 ---@param filter_flow  LuaGuiElement
----@return {item:Item, count:integer}[]
----@return {[Item]:boolean}?
+---@return {item:{name:string,quality:string}, count:integer}[]
+---@return {[string]:boolean}?
 local function get_edited_filters(filter_flow)
     local records = {}
     local item_set = {}
@@ -386,7 +418,9 @@ local function get_edited_filters(filter_flow)
             local count = tonumber(child["count"].text)
             if count and count > 0 then
                 table.insert(records, { item = item, count = count })
-                item_set[item] = true
+                local qname = item_to_string(item)
+                ---@cast qname -nil
+                item_set[qname] = true
             end
         end
     end
@@ -500,15 +534,14 @@ tools.on_gui_click(prefix .. "_sort", function(e)
     local current = vars.current
     if not current then return end
 
-    local entity = current.entity
     local filter_flow = frame.filter_scroll.filter_flow
 
-    local records, item_set = get_edited_filters(filter_flow)
+    local records     = get_edited_filters(filter_flow)
 
     table.sort(records,
         function(i1, i2)
-            local p1 = game.item_prototypes[i1.item]
-            local p2 = game.item_prototypes[i2.item]
+            local p1 = prototypes.item[i1.item.name]
+            local p2 = prototypes.item[i2.item.name]
             if p1.group ~= p2.group then
                 return p1.group.order < p2.group.order
             elseif p1.subgroup ~= p2.subgroup then
@@ -535,18 +568,22 @@ tools.on_gui_click(prefix .. "_bp", function(e)
 
     local filter_flow = frame.filter_scroll.filter_flow
     local stack = player.cursor_stack
+    if not stack then return end
     if stack.is_blueprint then
         local entities = stack.get_blueprint_entities()
         local records = {}
         for _, entity in pairs(entities) do
             if entity.name == "constant-combinator" then
-                local filters = entity.control_behavior.filters
-                for _, filter in pairs(filters) do
-                    if filter.signal and filter.signal.type == "item" then
-                        table.insert(records, {
-                            item = filter.signal.name,
-                            count = filter.count
-                        })
+                local sections = (entity.control_behavior --[[@as any]]).sections.sections
+                for _, section in pairs(sections) do
+                    local filters = section.filters
+                    for _, filter in pairs(filters) do
+                        if not filter.type or filter.type == "item" then
+                            table.insert(records, {
+                                item = { name = filter.name, quality = filter.quality },
+                                count = filter.count
+                            })
+                        end
                     end
                 end
             end
@@ -567,7 +604,6 @@ tools.on_gui_click(prefix .. "_bp", function(e)
         local filters
         local index
         local entity_number = 1
-        local cc = game.entity_prototypes["constant-combinator"]
         for _, r in pairs(records) do
             if current == nil then
                 filters = {}
@@ -576,7 +612,11 @@ tools.on_gui_click(prefix .. "_bp", function(e)
                     name = "constant-combinator",
                     position = { x = x, y = y },
                     control_behavior = {
-                        filters = filters
+                        sections = {
+                            sections = {
+                                { index = 1, filters = filters }
+                            }
+                        }
                     },
                     entity_number = entity_number
                 }
@@ -587,12 +627,14 @@ tools.on_gui_click(prefix .. "_bp", function(e)
                 entity_number = entity_number + 1
             end
             table.insert(filters, {
-                signal = { type = "item", name = r.item },
+                name = r.item.name,
+                quality = r.item.quality,
                 count = r.count,
+                comparator = "=",
                 index = index
             })
             index = index + 1
-            if index > cc.item_slot_count then
+            if index > 20 then
                 current = nil
             end
         end
@@ -639,7 +681,7 @@ local function on_gui_closed(e)
 end
 
 local function on_nth_tick(e)
-    local scanned_list = global.scanned_list
+    local scanned_list = storage.scanned_list
     if not scanned_list then return end
 
     local list = {}

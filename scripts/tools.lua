@@ -1,7 +1,8 @@
-
 local tools = {}
-local log_index = 1
-local tracing = true
+local tracing = false
+
+tools.tracing = tracing
+tools.trace_console = false
 
 ---@param msg LocalisedString?
 function tools.print(msg)
@@ -10,19 +11,33 @@ function tools.print(msg)
     log(msg)
 end
 
+local print_settings = { game_state = false, skip = defines.print_skip.never }
+
+local log_index = 1
+
 ---@param msg LocalisedString?
 local function debug(msg)
     if not tracing then return end
 
     if not msg then return end
 
-    if type(msg) == "string" then
-    msg = "[" .. log_index .. "] " .. msg
+    local time
+    if game then
+        time = game.tick
     else
-        table.insert(msg, 2, "[" .. log_index .. "] ")
+        time = log_index
+    end
+
+    if type(msg) == "string" then
+        msg = "[" .. time .. "] " .. msg
+    else
+        table.insert(msg, 2, "[" .. time .. "] ")
     end
     log_index = log_index + 1
-    tools.print(msg)
+    log(msg)
+    if tools.trace_console then
+        game.print(msg, print_settings)
+    end
 end
 
 tools.debug = debug
@@ -33,8 +48,11 @@ local function cdebug(cond, msg) if cond then debug(msg) end end
 
 tools.cdebug = cdebug
 
----@param trace boolean
-function tools.set_tracing(trace) tracing = trace end
+---@param value boolean
+function tools.set_tracing(value)
+    tracing = value
+    tools.tracing = value
+end
 
 function tools.is_tracing() return tracing end
 
@@ -51,10 +69,10 @@ local strip = tools.strip
 ---@return {[string]:any}
 function tools.get_vars(player)
     ---@type {[integer]: {[string]:any}}
-    local players = global.players
+    local players = storage.players
     if players == nil then
         players = {}
-        global.players = players
+        storage.players = players
     end
     local vars = players[player.index]
     if vars == nil then
@@ -68,11 +86,10 @@ end
 ---@param force LuaForce
 ---@return table<string, any>
 function tools.get_force_vars(force)
-
-    local forces = global.forces
+    local forces = storage.forces
     if forces == nil then
         forces = {}
-        global.forces = forces
+        storage.forces = forces
     end
     local vars = forces[force.index]
     if vars == nil then
@@ -88,8 +105,8 @@ end
 function tools.close_ui(unit_number, close_proc, field)
 
     if not field then field = "selected" end
-    if not global.players then return end
-    for index, vars in pairs(global.players) do
+    if not storage.players then return end
+    for index, vars in pairs(storage.players) do
         local selected = vars[field]
         if selected and selected.valid and selected.unit_number == unit_number then
 
@@ -102,8 +119,8 @@ end
 
 ---@return integer
 function tools.get_id()
-    local id = global.id or 1
-    global.id = id + 1
+    local id = storage.id or 1
+    storage.id = id + 1
     return id
 end
 
@@ -112,9 +129,9 @@ function tools.upgrade_id(newid)
     if not newid then
         return
     end
-    local id = global.id or 1
+    local id = storage.id or 1
     if id <= newid then
-        global.id = newid + 1
+        storage.id = newid + 1
     end
 end
 
@@ -442,7 +459,7 @@ local function call_handler(e)
 end
 
 ---@param name string
----@param event integer
+---@param event integer|defines.events
 ---@param callback fun(e:EventData)
 function tools.on_named_event(name, event, callback)
 
@@ -675,6 +692,8 @@ function tools.signal_to_sprite(signal)
     local type = signal.type
     if type == "virtual" then
         return "virtual-signal/" .. signal.name
+    elseif type == nil then
+        return "item/" .. signal.name
     else
         return type .. "/" .. signal.name
     end
@@ -682,12 +701,13 @@ end
 
 local gmatch = string.gmatch
 
----@param sprite string
+---@param sprite string?
 ---@return SignalID?
 function tools.sprite_to_signal(sprite)
     if not sprite then return nil end
     local split = gmatch(sprite, "([^/]+)[/]([^/]+)")
     local type, name = split()
+    if name == nil then return { type = "item", name = type } end
     if type == "virtual-signal" then type = "virtual" end
     return { type = type, name = name }
 end
@@ -714,25 +734,26 @@ end
 ---@return any
 local function check_signal(type, name)
     if type == "virtual" then
-        return game.virtual_signal_prototypes[name]
+        return prototypes.virtual_signal[name]
     elseif type == "item" then
-        return game.item_prototypes[name]
+        return prototypes.item[name]
     elseif type == "fluid" then
-        return game.fluid_prototypes[name]
+        return prototypes.fluid[name]
     end
     return true
 end
 
 ---@param sprite string?
+---@param default string?
 ---@return string?
-function tools.check_sprite(sprite)
+function tools.check_sprite(sprite, default)
     if not sprite then return nil end
     local signal = tools.sprite_to_signal(sprite)
     ---@cast signal -nil
     if check_signal(signal.type, signal.name) then
         return sprite
     else
-        return nil
+        return default
     end
 end
 
@@ -770,19 +791,21 @@ function tools.destroy_entities(master, entity_names)
     for _, e in pairs(entities) do if e.valid then e.destroy() end end
 	end
 
----@param index integer
+---@param index integer | defines.train_state | defines.events
 ---@param base table<string, integer>
 ---@return string
 function tools.get_constant_name(index, base)
+    if base then
     for name, i in pairs(base) do if i == index then return name end end
-    return "[unknown:"..index.."]"
+    end
+    return tostring(index)
 end
 
 ------------------------------------------------
 
 local define_directions = defines.direction
 
----@param direction integer
+---@param direction integer | defines.direction
 ---@param pos MapPosition
 ---@return MapPosition
 function tools.get_local_disp(direction, pos)
@@ -800,7 +823,7 @@ function tools.get_local_disp(direction, pos)
 	end
 end
 
----@param direction integer
+---@param direction integer | defines.direction
 ---@param pos MapPosition
 ---@return MapPosition
 function tools.get_front(direction, pos)
@@ -817,7 +840,7 @@ function tools.get_front(direction, pos)
 	end
 end
 
----@param direction integer
+---@param direction integer | defines.direction
 ---@param pos MapPosition
 ---@return MapPosition
 function tools.get_back(direction, pos)
@@ -841,7 +864,7 @@ tools.opposite_directions = {
     [define_directions.west ] = define_directions.east
 }
 
----@param direction integer
+---@param direction integer | defines.direction
 ---@return integer
 function tools.get_opposite_direction(direction)
 	if direction == define_directions.north then
@@ -899,7 +922,7 @@ function tools.get_item_stack_size(name)
 
     local signal = tools.sprite_to_signal(name) --[[@as SignalID]]
     if signal.type == "item" then
-        local proto = game.item_prototypes[signal.name]
+        local proto = prototypes.item[signal.name]
         if proto then
             stack_size = proto.stack_size
         else
@@ -923,7 +946,7 @@ function tools.get_item_prototype(name)
     local proto = item_prototypes_map[name]
     if  proto then return proto end
 
-    proto = game.item_prototypes[name]
+    proto = prototypes.item[name]
     item_prototypes_map[name] = proto
     return proto
 end
@@ -1059,7 +1082,7 @@ function tools.create_standard_panel(player, params)
             tooltip = params.close_button_tooltip,
             style = "frame_action_button",
             mouse_button_filter = params.close_button_filter or { "left" },
-            sprite = "utility/close_white",
+            sprite = "utility/close",
             hovered_sprite = "utility/close_black"
         }
     end
@@ -1100,5 +1123,24 @@ local function fround(value)
 end
 
 tools.fround = fround
+
+---@param id string | LuaRenderObject
+---@return LuaRenderObject
+function tools.render_translate(id)
+    if id and type(id) == "number" then
+        return rendering.get_object_by_id(id)
+    end
+    return id --[[@as LuaRenderObject]]
+end
+
+---@param ids (string | LuaRenderObject)[]?
+---@return LuaRenderObject[]?
+function tools.render_translate_table(ids)
+    if not ids then return nil end
+    for i = 1, #ids do
+        ids[i] = tools.render_translate(ids[i])
+    end
+    return ids
+end
 
 return tools
