@@ -1143,4 +1143,25 @@ function tools.render_translate_table(ids)
     return ids
 end
 
+---@param item ItemFilter?
+---@return string?
+function tools.item_to_string(item)
+    if not item then return nil end
+    return item.name .. "/" .. (item.comparator or "=") .. "/" .. (item.quality or "normal")
+end
+
+local gmatch = string.gmatch
+
+---@param qname string? | ItemFilter
+---@return ItemFilter?
+function tools.string_to_item(qname)
+    if not qname then return nil end
+    if type(qname) ~= "string" then return qname end
+    local split = gmatch(qname, "([^/]+)")
+    local name = split()
+    local comparator = split() or "="
+    local quality = split() or "normal"
+    return { name = name, comparator = comparator, quality = quality }
+end
+
 return tools

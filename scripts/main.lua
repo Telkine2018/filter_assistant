@@ -16,26 +16,8 @@ local container_filter = {
     ["linked-container"] = true
 }
 
----@param item ItemFilter?
----@return string?
-local function item_to_string(item)
-    if not item then return nil end
-    return item.name .. "/" .. (item.comparator or "=") .. "/" .. (item.quality or "normal")
-end
-
-local gmatch = string.gmatch
-
----@param qname string?
----@return ItemFilter?
-local function string_to_item(qname)
-    if not qname then return nil end
-    if type(qname) ~= "string" then return qname end
-    local split = gmatch(qname, "([^/]+)")
-    local name = split()
-    local comparator = split() or "="
-    local quality = split() or "normal"
-    return { name = name, comparator = comparator, quality = quality }
-end
+local item_to_string = tools.item_to_string
+local string_to_item = tools.string_to_item
 
 ---Close current ui
 ---@param player LuaPlayer
@@ -59,7 +41,7 @@ local mini_style = prefix .. "_mini_button"
 local mini_size = 16
 
 ---@param filter_flow LuaGuiElement
----@param qname string?
+---@param qname (string | ItemFilter)?
 ---@param count ItemCount
 local function create_cell(filter_flow, qname, count)
     local filter_cell = filter_flow.add { type = "flow", direction = "horizontal" }
@@ -497,7 +479,10 @@ local function do_apply(player, connect_to_lb2)
         for _, index in ipairs(remaining) do
             local stack = temp[index]
             local count = stack.count
-            local count1 = private_inv.insert(stack)
+            local count1 = 0
+            if private_inv then
+                count1 = private_inv.insert(stack)
+            end 
             if count1 ~= count then
                 stack.count = count - count1
                 entity.surface.spill_item_stack(entity.position, stack, true, entity.force)
