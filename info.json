@@ -1,14 +1,14 @@
 {
   "name": "filter_assistant",
-  "version": "1.0.0",
+  "version": "2.0.1",
   "title": "Filter assistant",
   "author": "Telkine2018",
   "contact": "",
   "homepage": "",
   "description": "A tools that helps to change the configuration of filters in chest / car / wagon / spidertron especially at runtime",
-  "factorio_version": "1.1",
+  "factorio_version": "2.0",
   "dependencies": [
-		"base >= 1.1",
-    "flib >= 0.11.2"
+		"base >= 2.0.0" ,
+    "flib >= 0.15.0"
 	]
 }
