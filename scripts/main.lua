@@ -482,10 +482,10 @@ local function do_apply(player, connect_to_lb2)
             local count1 = 0
             if private_inv then
                 count1 = private_inv.insert(stack)
-            end 
+            end
             if count1 ~= count then
                 stack.count = count - count1
-                entity.surface.spill_item_stack(entity.position, stack, true, entity.force)
+                entity.surface.spill_item_stack { position = entity.position, stack = stack, enable_looted = true, force = entity.force }
             end
         end
     end
