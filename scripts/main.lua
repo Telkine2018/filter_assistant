@@ -755,6 +755,7 @@ local function on_shift_button1(e)
 
         local inv = get_inventory(selected)
         if not inv then return end
+        if not inv.supports_filters() then return end
 
         local recipe = machine.get_recipe()
         if not recipe then return end
