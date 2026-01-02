@@ -279,7 +279,7 @@ end
 
 ------------------------------------------------
 
----@param event integer
+---@param event defines.events
 ---@param handler fun(EventData)
 ---@param filters ({["filter"]:string}|{["name"]:string})[]?
 function tools.on_event(event, handler, filters)
