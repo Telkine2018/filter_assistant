@@ -557,6 +557,7 @@ tools.on_gui_click(prefix .. "_bp", function(e)
     if stack.is_blueprint then
         local entities = stack.get_blueprint_entities()
         local records = {}
+        if not entities or #entities == 0 then return end
         for _, entity in pairs(entities) do
             if entity.name == "constant-combinator" then
                 local sections = (entity.control_behavior --[[@as any]]).sections.sections
